@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" 
+		 width="910" height="672">
+	<s:layout>
+		<s:BasicLayout/>
+	</s:layout>
+
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+	</fx:Declarations>
+	
+	<fx:Style source="css/subscore.css">
+	</fx:Style>
+	
+	<fx:Script>
+		<![CDATA[
+			import mx.managers.PopUpManager;
+			
+			
+			
+// -------------------------------		事件		----------------------------------				
+			
+			/**			鼠标移入按钮			*/
+			protected function button_rollOverHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				(event.currentTarget as Image).alpha = 0.5;
+			}
+			
+			/**			鼠标移除按钮			*/
+			protected function button_rollOutHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				(event.currentTarget as Image).alpha = 0;
+			}
+			
+			/**			重新开始游戏		*/
+			protected function restart_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				// 取消弹框-时间结束
+				PopUpManager.removePopUp(this);
+				
+				// 设置所有状态都为初始化状态
+				GoldMiner._goldMiner.setGameStatusToInitialize();
+				
+				// 隐藏巨大Button
+				GoldMiner._goldMiner.btnFull.visible = false;
+				// 显示页面加载内容
+				GoldMiner._goldMiner.timeOver._vsCurrIndex = 2;
+			}
+
+		]]>
+	</fx:Script>
+	
+	
+	<!--		提交分数的背景			-->
+	<mx:Image source="images/submitScore.png" width="100%" height="100%" maintainAspectRatio="false" />
+	<s:Label x="157" y="285" styleName="yourScore" text="你共完成 {GoldMiner._currLevel-1} 关，共获得 {GoldMiner._currPrice} 点金钱！"/>
+	<!--		重玩		-->
+	<mx:Image source="images/submitButton.png" 
+			  width="120" height="50" maintainAspectRatio="false" alpha="0" 
+			  x="86" y="565" buttonMode="true"
+			  rollOver="button_rollOverHandler(event)" 
+			  rollOut="button_rollOutHandler(event)"
+			  click="restart_clickHandler(event)"/>
+	<s:Label x="117" y="579" styleName="button" text="重玩" mouseEnabled="false"/>
+	<s:Button width="120" height="50" x="86" y="565" alpha="1" visible="false" mouseEnabled="false"/>
+	<!--		提交分数			-->
+	<mx:Image source="images/submitButton.png" 
+			  width="154" height="50" maintainAspectRatio="false" alpha="0" 
+			  x="632" y="565" buttonMode="true"
+			  rollOver="button_rollOverHandler(event)" 
+			  rollOut="button_rollOutHandler(event)"/>
+	<s:Label x="660" y="579" styleName="button" text="提交分数" mouseEnabled="false"/>
+</s:Group>

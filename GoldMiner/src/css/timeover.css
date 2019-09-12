@@ -1,0 +1,28 @@
+/* CSS file */
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+
+
+/**		商品价格的样式			*/
+.goods-price{
+	color : #009900;
+	font-size : 24;
+	font-family : Tahoma;
+	font-weight : bold;
+}
+
+/**		下一关按钮的文字的样式		*/
+.nextLevel{
+	color : #00FF00;
+	font-size : 28;
+	font-family : 华文新魏;
+	font-weight : bold;
+}
+
+/**			目标分数		*/
+.objectiveScore{
+	color : #00CC00;
+	fontFamily: Tahoma;
+	fontWeight: bold;
+	fontSize: 48;
+}

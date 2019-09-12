@@ -1,0 +1,1697 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Application creationComplete="loaded();"
+			   keyDown="application_keyDownHandler(event)"
+			   xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" 
+			   minWidth="955" minHeight="600"
+			   width="975" height="710"
+			   xmlns:view="com.goldminer.view.*">
+	
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+		<!---		游戏地图的HTTPService对象			-->
+		<s:HTTPService id="mapSrv" url="map.xml" result="mapSrv_resultHandler(event)" />
+	</fx:Declarations>
+	
+	<fx:Style source="css/main.css">
+	</fx:Style>
+		
+	<fx:Script>
+		<![CDATA[
+			import flash.utils.clearInterval;
+			import flash.utils.clearTimeout;
+			import flash.utils.setInterval;
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.controls.LinkButton;
+			import mx.effects.Move;
+			import mx.effects.Rotate;
+			import mx.effects.SoundEffect;
+			import mx.effects.Zoom;
+			import mx.events.EffectEvent;
+			import mx.events.FlexEvent;
+			import mx.managers.PopUpManager;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.StringUtil;
+			
+			import org.osmf.layout.AbsoluteLayoutFacet;
+			
+			import spark.components.supportClasses.DisplayLayer;
+			
+			
+			
+			
+			
+// ----------------------			成员变量				-----------------------------------------------			
+			
+			
+			/**			从左向右旋转的rotate		*/
+			private var _rotateLeftToRight:Rotate = new Rotate();
+			
+			/**			从右向左旋转的rotate			*/
+			private var _rotateRightToLeft:Rotate = new Rotate();
+			
+			/**			设置钩子是否旋转		*/
+			private var _IsRotate:Boolean = true;
+			
+			/**			存放所有地图的集合		*/
+			private var _mapList:ArrayCollection = null;
+			
+			/**			存放所有地图上的东西的集合			*/
+			private var _objList:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			/**			当前已获得金额		*/
+			public static var _currPrice:Number = 0;
+			
+			[Bindable]
+			/**			目标金额，获胜金额		*/
+			public static var _winPrice:Number = 0;
+			
+			/**			当前所剩余时间			*/
+			[Bindable]
+			public var _currTime:Number = int.MAX_VALUE;
+			
+			/**			当前关卡数		*/
+			[Bindable]
+			public static var _currLevel:Number = 1;
+			
+			/**			是否允许声音				*/
+			public static var _IsPlaySound:Boolean = true;
+			
+			/**			播放音效的声音对象			*/
+			private var _effectSound:SoundEffect = new SoundEffect();
+			
+			/**			移动要加的分数对象			*/
+			private var _moveScore:Move = new Move();
+			
+			/**			放大缩小要加的分数的zoom对象				*/
+			private var _zoomScore:Zoom = new Zoom();
+			
+			/***		再次移动和缩小的延迟时间				*/
+			private var _againMoveDuration:int = 600;
+			
+			/**	是否具有力量，力量类型分为三种，
+			 * 	值为0：普通力量，默认的。
+			 * 	值为1：购买了生力水。
+			 * 	值为2：从问号袋子中获取了Strength力量
+			 **/
+			public static var _powerType:int = 0;
+			
+			/**			存放十个爆竹的集合			*/
+			private var _bombList:ArrayCollection = new ArrayCollection();
+			
+			/**			当前爆竹的数量			*/
+			public static var _currBombNum:int = 0;
+			
+			/**			当前钩子的气血 ， 默认是3，每被TNT炸药炸到，就减一次，当为0时，钩子就不能再使用，游戏结束			*/
+			public static var _currHookLife:int = 3;
+			
+			/**			判断是否可以投掷爆竹			*/
+			private var _IsThrowBomb:Boolean = true;
+			
+			/**			是否处于幸运状态，是否拥有幸运草			*/
+			public static var _IsLuckStatus:Boolean = false;
+			
+			/**	是否拥有石头收藏书，如果没有购买，默认为-1，
+			 * 	如果，购买了则使用次数为3，
+			 * 	如果，使用次数用完了，次数为0，
+			 * 	使用完毕之后，不要设置为-1.
+			 **/
+			public static var _stoneChangeCount:int = -1;
+			
+			/**			是否拥有高质量钻石水 			*/
+			public static var _IsHighDiamond:Boolean = false;
+			
+			/**			是否可以继续游戏			*/
+			private var _IsPlayGame:Boolean = true;
+			
+			/**			游戏结束是停止还是时间结束，值为true时，是点击退出按钮停止游戏的，为false时，是时间结束停止的。		*/
+			public var _IsStopOrOver:Boolean = true;
+			
+			/**			声明一个GoldMiner对象，这个对象可以代表GoldMiner的主程序的实例			*/
+			public static var _goldMiner:GoldMiner = null;
+			
+			/**		倒计时10秒的setInterval对象，闪烁提示时间的操作			*/
+			private var _downtime:uint;
+			
+			/**		最小音量			*/
+			public var _volumeMin:SoundTransform = new SoundTransform(0);
+			
+			/**		最大音量			*/
+			public var _volumeMax:SoundTransform = new SoundTransform(1);
+			
+			/**	是否为会员，
+			 * 	如果为会员，会有一些相应的优惠
+			 **/
+			public static var _IsMember:Boolean = false;
+			
+			/**			移动ControlPanel面板的Move对象			*/
+			private var _cpMove:Move = new Move();
+			
+			
+			
+			
+			
+			
+// ----------------			成员方法				------------------------------------------			
+			
+			
+			/**			所有元素创建完毕，加载设置		*/
+			protected function loaded():void
+			{
+				// 设置控制面板的高
+//				this.cpMain.y = -this.cpMain.height+6;
+				
+				// 设置引用GoldMiner的引用
+				GoldMiner._goldMiner = this;
+				
+				// 设置旋转钩子的rotate对象的相关属性
+				this.setRotateHook();
+				
+				// 启用钩子旋转的功能
+				this.hookEnabledRotate();
+				
+				// 设置音效的长度
+				this._effectSound.duration = int.MAX_VALUE;
+				
+				// 循环创建十个爆竹
+				this.createTenBomb();
+				
+				// 发送请求
+				this.mapSrv.send();
+				
+				// 显示开始页面
+				this.btnFull.visible = false;
+				this.timeOver.visible = true;
+				
+				// 初始化向上拉绳索的老头和初始化向下放绳索的老头
+				this.imgCordUp.source = "swf/cordUp.swf";
+				this.imgCordDown.source = "swf/cordDown.swf";
+				this.imgCordDown.soundTransform = this._volumeMin;
+				// 设置隐藏向下放绳子和向上拉绳子的老头的图片
+				this.geezerDownVisible(false);
+				this.geezerUpVisible(false);
+				// 地图都设置完毕之后，开始倒计时
+				this.countDownCurrentTime();
+			}
+			
+			/**	播放音效
+			 * 	@param source:播放声音的路径
+			 * 	@param target:播放声音给那一个对象
+			 **/
+			public function playEffectSound(source:String,target:DisplayObject):void{
+				if(GoldMiner._IsPlaySound){
+					this._effectSound.source = source;
+					this._effectSound.target = target;
+					this._effectSound.play();
+				}
+			}
+								
+			/**	循环创建十个爆竹	*/
+			private function createTenBomb():void{
+				// 清空集合
+				this._bombList.removeAll();
+				// 创建爆竹
+				for(var i:int = 0 ; i < 10 ; i ++){
+					var bomb:Image = new Image();
+					bomb.source = "images/bomb.png";
+					bomb.visible = false;
+					bomb.x = 620+i*10;
+					bomb.y = 71;
+					bomb.rotation = 20;
+					bomb.width = 7;
+					bomb.height = 30;
+					this.groScoreInfo.addElement(bomb);
+					// 添加到集合中
+					this._bombList.addItem(bomb);
+				}
+			}
+			
+			/**	控制是否显示放下绳索的老头
+			 * 	@param visible:是显示还是隐藏
+			 **/
+			private function geezerDownVisible(visible:Boolean):void{
+				if(visible){
+					this.imgCordDown.visible = true;
+				}else{
+					this.imgCordDown.visible = false;
+				}
+			}
+			
+			/**	控制是否显示向上拉绳索的老头
+			 * 	@param visible:是显示还是隐藏
+			 **/
+			private function geezerUpVisible(visible:Boolean):void{
+				if(visible){
+					// 判断是否播放声音
+					if(GoldMiner._IsPlaySound){
+						this.imgCordUp.soundTransform = this._volumeMax;
+					}
+					this.imgCordUp.visible = true;
+				}else{
+					this.imgCordUp.soundTransform = this._volumeMin;
+					this.imgCordUp.visible = false;
+				}
+			}
+			
+			/**	清空所有关于老头的图片，
+			 * 	传入继续显示的老头的序号，
+			 * 	@param target:
+			 * 		1：默认的老头的图片			geezer.png
+			 * 		2：向上拉绳子的投劳的图片		cordup.swf
+			 * 		3：向下放绳子的老头的图片		cordDown.swf
+			 * 		否则传入其他数字，就全部都隐藏或清空source		*/
+			private function hideGeezer(target:int):void{
+				switch(target){
+					case 1:
+						this.geezerDownVisible(false);
+						this.geezerUpVisible(false);
+						break;
+					case 2:
+						this.imgGeezer.visible = false;
+						this.geezerDownVisible(false);
+						break;
+					case 3:
+						this.imgGeezer.visible = false;
+						this.geezerUpVisible(false);
+						break;
+					default:
+						this.imgGeezer.visible = false;
+						this.geezerDownVisible(false);
+						this.geezerUpVisible(false);
+						break;
+				}
+			}
+			
+			/**	设置旋转钩子的rotate对象的相关属性	*/
+			private function setRotateHook():void{
+				// 设置从左向右旋转的rotate
+				this._rotateLeftToRight.target = this.hook;
+				this._rotateLeftToRight.originX = this.hook.width/2.0;
+				this._rotateLeftToRight.originY = 0;
+				this._rotateLeftToRight.duration = 3000;				
+				this._rotateLeftToRight.angleFrom = 75;
+				this._rotateLeftToRight.angleTo = -75;
+
+				// 设置从右向左旋转的rotate
+				this._rotateRightToLeft.target = this.hook;
+				this._rotateRightToLeft.originX = this.hook.width/2.0;
+				this._rotateRightToLeft.originY = 0;
+				this._rotateRightToLeft.duration = 0;
+				this._rotateRightToLeft.duration = 3000;
+				this._rotateRightToLeft.angleFrom = -75;
+				this._rotateRightToLeft.angleTo = 75;
+			}
+			
+			/**	让钩子从右向左旋转 	*/
+			private function rotateHookFormRightToLeft():void{
+				
+				if(this._IsRotate && !this._rotateLeftToRight.isPlaying && !this._rotateRightToLeft.isPlaying){
+					// 从右向左甩动绳索
+					this._rotateRightToLeft.play();
+					
+					// 等待从右向左甩动完毕之后，在从左向右甩动  绳索
+					setTimeout(this.rotateHookFormLeftToRight,this._rotateRightToLeft.duration+100);
+				}
+				 
+			}
+			
+			/**	让钩子从左向右旋转	*/
+			private function rotateHookFormLeftToRight():void{
+				
+				if(this._IsRotate && !this._rotateLeftToRight.isPlaying && !this._rotateRightToLeft.isPlaying){
+					// 从左向右甩动绳索
+					this._rotateLeftToRight.play();	
+					
+					// 等待从左向右甩动完毕之后，在从右向左甩动绳索
+					setTimeout(this.rotateHookFormRightToLeft,this._rotateLeftToRight.duration+100);
+				}
+			
+			}
+			
+			/**	让钩子丧失左右摆甩能力，
+			 * 	停止了左右摆甩的对象（rotate）
+			 * 	和设置了 _IsRotate 为 false		*/
+			private function hookDisableRotate():void{
+				// 暂停摆动钩子的效果
+				this._rotateLeftToRight.stop();
+				this._rotateRightToLeft.stop();
+				// 设置不再旋转钩子
+				this._IsRotate = false;
+			}
+			
+			/**	让钩子具备摆甩的能力，
+			 * 	设置了 _IsRotate 为 true，
+			 * 	随机方向摆甩
+			 **/
+			private function hookEnabledRotate():void{
+				// 设置继续摇摆钩子和绳索
+				this._IsRotate = true;
+				
+				// 获取钩子的方向
+				var direction:int = this.hook.rotation;
+				// 判断钩子倾向于坐标还是右边，是左边就从右边开始摆动，是右边就从左边开始摆动，是中间（0）就随机摆动
+				if (direction > 0) {
+					this.rotateHookFormRightToLeft();
+				} else if (direction < 0){
+					this.rotateHookFormLeftToRight();
+				} else {
+					if(Math.random()*2 == 0){
+						this.rotateHookFormLeftToRight();
+					}else{
+						this.rotateHookFormRightToLeft();
+					}
+				}
+			}
+			
+			/**	播放抓住东西的声效，
+			 * 	@param target:传入抓住对象的图片路径，source
+			 * 	自动判断播放那一种声音
+			 **/
+			private function playGraspSomethingEffectSound(target:String):void{
+				switch(target){
+					case "images/g_gold1.png":				// 小金子
+					case "images/g_gold2.png":				// 中等金子
+					case "images/g_bag.png":				// 问号袋子
+						this._effectSound.source = "sounds/graspSmallPrice.mp3";
+						break;
+					case "images/g_gold3.png":				// 大金子
+					case "images/g_gold4.png":				// 超大金子
+					case "images/g_diamond.png":			// 钻石
+					case "images/g_diamondMouse.png":		// 叼着钻石的老鼠
+						this._effectSound.source = "sounds/graspBigPrice.mp3";
+						break;
+					case "images/g_roundStone.png":			// 圆形石头
+					case "images/g_triangleStone.png":		// 三角石头
+					case "images/g_bone.png":				// 骨头棍
+					case "images/g_head.png":				// 骷髅头
+					case "images/g_mouse.png":				// 老鼠
+						this._effectSound.source = "sounds/graspStone.mp3";
+						break;
+					case "images/g_tntLid.png":					//	抓住tnt
+						this._effectSound.source = "sounds/graspTNT.mp3";
+						break;
+				}
+				// 播放声音
+				if(GoldMiner._IsPlaySound){
+					this._effectSound.target = this;
+					this._effectSound.play();
+				}
+			}
+			
+			/**	移动老鼠的方法，耗子，叼着钻石的耗子
+			 * 	@param mouse:要移动的老鼠
+			 * */
+			private function moveMouse(mouse:Image):void{
+				mouse.x --;
+				if(mouse.x < -mouse.width*5){
+					mouse.x = this.width+mouse.width;
+				}
+				setTimeout(this.moveMouse,10,mouse);
+			}
+			
+			/**	显示超级大金子的光效	*/
+			private function showSuperBigGoldEffect():void{
+				// 先清除效果，在设置显示效果
+				this.hook.graspBigGoldEffect.source = "";
+				this.hook.graspBigGoldEffect.source = "swf/goldRing.swf";
+			}
+			
+			/**	钩住问号袋子，获取Strength力量*/
+			private function graspStrengthPower():void{
+				// 放大显示Strength文字图片
+				this._zoomScore.originX = this.imgStrengthText.width/2.0;
+				this._zoomScore.originY = this.imgStrengthText.height/2.0;
+				this._zoomScore.zoomHeightFrom = 0;
+				this._zoomScore.zoomHeightTo = 1
+				this._zoomScore.zoomWidthFrom = 0;
+				this._zoomScore.zoomWidthTo = 1;
+				this._zoomScore.target = this.imgStrengthText;
+				this._zoomScore.duration = 800;
+				this._zoomScore.play();
+				
+				// 显示Strength文字
+				this.imgStrengthText.visible = true;
+				
+				// 隐藏所有老头图片
+				this.hideGeezer(0);
+				// 显示Strength力量的老头
+				this.imgStrengthGeezer.visible = true;
+				
+				// 播放获得Strength力量的声音
+				if (GoldMiner._IsPlaySound){
+					this._effectSound.source = "sounds/graspBigPrice.mp3";
+					this._effectSound.target = this.imgStrengthText;
+					this._effectSound.play();
+				}
+				
+				// 设置获取了strength力量
+				GoldMiner._powerType = 2;
+				
+				// 等待隐藏Strength力量
+				setTimeout(function():void{
+					// 播放继续摆甩钩子的声音
+					if (GoldMiner._IsPlaySound){
+						_effectSound.source = "sounds/plusScore.mp3";
+						_effectSound.target = imgStrengthText;
+						_effectSound.play();
+					}
+					// 隐藏strength文字
+					imgStrengthText.visible = false;
+					// 隐藏Strength力量的老头
+					imgStrengthGeezer.visible = false;
+					// 显示默认的老头图片
+					imgGeezer.visible = true;
+					// 清空钩住的问号袋子图片
+					hook.graspTarget.source = "";
+					// 显示默认的钩子
+					hook.imgHook.visible = true;
+					// 让钩子继续摆甩
+					hookEnabledRotate();
+				},1200);
+			}
+			
+			/**	抓住爆竹的效果	*/
+			private function graspBomb():void{
+				// 放大显示抓住的爆竹的图片
+				this._zoomScore.originX = this.imgBagBomb.width/2.0;
+				this._zoomScore.originY = this.imgBagBomb.height/2.0;
+				this._zoomScore.zoomHeightFrom = 0;
+				this._zoomScore.zoomHeightTo = 2
+				this._zoomScore.zoomWidthFrom = 0;
+				this._zoomScore.zoomWidthTo = 2;
+				this._zoomScore.target = this.imgBagBomb;
+				this._zoomScore.duration = 1000;
+				this._zoomScore.play();
+				
+				// 显示从问号袋子中得到的爆竹
+				imgBagBomb.x = 284;
+				imgBagBomb.y = 61;
+				this.imgBagBomb.visible = true;
+				
+				// 播放获得爆竹的声音
+				if (GoldMiner._IsPlaySound){
+					this._effectSound.source = "sounds/graspBigPrice.mp3";
+					this._effectSound.target = this.imgBagBomb;
+					this._effectSound.play();
+				}
+				
+				// 等待移动从问号袋子中获得的爆竹
+				setTimeout(function():void{
+					// 从两倍大小，还原到1倍
+					_zoomScore.zoomWidthFrom = 2;
+					_zoomScore.zoomWidthTo = 1;
+					_zoomScore.zoomHeightFrom = 2;
+					_zoomScore.zoomHeightTo = 1;
+					_zoomScore.target = imgBagBomb;
+					_zoomScore.duration = 1000;
+					_zoomScore.play();
+					
+					// 开始将从问号袋子中得到的爆竹移动到对应个数的爆竹位置上
+					_moveScore.xFrom = imgBagBomb.x;
+					_moveScore.xTo = 620+_currBombNum*10;
+					_moveScore.yFrom = imgBagBomb.y;
+					_moveScore.yTo = 71;
+					_moveScore.duration = 1000;
+					_moveScore.target = imgBagBomb;
+					_moveScore.play();
+					
+					// 等待爆竹快移动完毕，
+					setTimeout(function():void{
+						// 播放继续摆甩钩子的声音
+						if (GoldMiner._IsPlaySound){
+							_effectSound.source = "sounds/plusScore.mp3";
+							_effectSound.target = imgStrengthText;
+							_effectSound.play();
+						}
+						
+						// 增加当前拥有的爆竹数量
+						if(_currBombNum < 10)
+							_currBombNum++;
+						// 重新设置爆竹集合中的可见性
+						setBombVisible();
+						
+						// 设置问号袋子中得到的爆竹隐藏
+						imgBagBomb.visible = false;
+						
+						// 清空钩住的问号袋子图片
+						hook.graspTarget.source = "";
+						// 显示默认的钩子
+						hook.imgHook.visible = true;
+						// 让钩子继续摆甩
+						hookEnabledRotate();
+					},800);
+				},1200);
+			}
+			
+			/**	设置爆竹集合中的爆竹是否可见			*/
+			private function setBombVisible():void{
+				// 清除所有爆竹
+				for(var index:int = 0 ; index < this._bombList.length ; index ++){
+					var b:Image = this._bombList[index] as Image;
+					this.groScoreInfo.removeElement(b);
+				}
+				// 再次创建十个爆竹，函数中自动清除集合
+				this.createTenBomb();
+				
+				// 设置爆竹是隐藏还是显示
+				for(var i:int = 0 ; i < this._bombList.length ; i ++){
+					var bomb:Image = this._bombList[i] as Image;
+					if(i < GoldMiner._currBombNum){
+						bomb.visible = true;
+					}else{
+						bomb.visible = false;
+					}
+				}
+				// 隐藏钩子控件的爆竹
+				this.hook.imgBomb.visible = false;
+			}
+			
+			/**	显示要加的分数，并且加上分数
+			 * 	@param graspTarget:钩子钩住的东西的路径
+			 * */
+			private function showScoreAndPlusScore(graspTarget:String):void{
+				// 创建分数
+				var score:LinkButton = new LinkButton();
+				score.styleName = "create-score";
+				score.x = 450;
+				score.y = 100;
+				score.width = 200;
+				score.label = "$";
+				
+				// 判断抓住的物品对应的奖励
+				switch(graspTarget){
+					case "images/g_gold1.png":				// 小金子
+						score.label += "50";
+						break;
+					case "images/g_gold2.png":				// 中金子
+						score.label += "100";
+						break;
+					case "images/g_gold3.png":				// 大金子
+						score.label += "250";
+						break;
+					case "images/g_gold4.png":				// 超大金子
+						score.label += "500";
+						break;
+					case "images/g_diamond.png":			// 钻石
+						if(GoldMiner._IsHighDiamond){
+							score.label += "900";
+						}else{
+							score.label += "600";
+						}
+						break;
+					case "images/g_bone.png":				// 骨头棍
+						score.label += "10";
+						break;
+					case "images/g_head.png":				// 骷髅头
+						score.label += "20";
+						break;
+					case "images/g_mouse.png":				// 老鼠
+						score.label += "2";
+						break;
+					case "images/g_diamondMouse.png":		// 叼着钻石的老鼠
+						if(GoldMiner._IsHighDiamond){
+							score.label += "902";
+						}else{
+							score.label += "602";
+						}
+						break;
+					case "images/g_roundStone.png":			// 圆形石头
+						// 如果，石头书的使用次数不等于-1（-1为没有购买石头书）
+						if(GoldMiner._stoneChangeCount != -1){
+							var r:int = Math.random()*10;
+							if(r%3==0){
+								// 如果，石头书的使用次数大于0
+								if(GoldMiner._stoneChangeCount > 0){
+									score.label += "330";
+									// 使用石头书的次数减少一次
+									GoldMiner._stoneChangeCount --;
+								}else{
+									score.label += "33";
+								}
+							}else{
+								score.label += "33";
+							}
+						}else{
+							score.label += "11";
+						}
+						break;
+					case "images/g_triangleStone.png":		// 三角石头
+						// 如果，石头书的使用次数不等于-1（-1为没有购买石头书）
+						if(GoldMiner._stoneChangeCount != -1){
+							var random:int = Math.random()*10;
+							if(random%3==0){
+								// 如果，石头书的使用次数大于0
+								if(GoldMiner._stoneChangeCount > 0){
+									score.label += "600";
+									// 使用石头书的次数减少一次
+									GoldMiner._stoneChangeCount --;
+								}else{
+									score.label += "60";
+								}
+							}else{
+								score.label += "60";
+							}
+						}else{
+							score.label += "20";
+						}
+						break;
+					case "images/g_tntLid.png":				// TNT炸药
+						score.label += "1";
+						break;
+					case "images/g_bag.png":				// 问号袋子
+						// 如果，拥有幸运草，就获得更好的东西
+						if(GoldMiner._IsLuckStatus){
+							// 如果是问号袋子，就随机一个速度
+							var bag:int = Math.random()*700;
+							
+							// 判断，获取的是哪一个东西
+							if(bag%5==0 || bag%7==0){
+								// 抓住Strength力量的效果
+								this.graspStrengthPower();
+								return;
+							}else if(bag%9==0 || bag%11==0){
+								// 获得炸药，爆竹
+								this.graspBomb();
+								return;
+							}else{		// 否则，加分
+								// 如果，要加的分数小于300，就在随机一次
+								if(bag < 300){
+									bag = Math.random()*700;
+								}
+								score.label += bag.toString();
+							}
+						}else{
+							// 如果是问号袋子，就随机一个速度
+							var bag2:int = Math.random()*700;
+							
+							// 判断，获取的是哪一个东西
+							if(bag2%5==0){
+								// 抓住Strength力量的效果
+								this.graspStrengthPower();
+								return;
+							}else if(bag2%7==0){
+								// 获得炸药，爆竹
+								this.graspBomb();
+								return;
+							}else{
+								// 否则，加分
+								score.label += bag2.toString();
+							}
+						}
+						break;
+				}
+				
+				// 播放音效，创建分数，
+				if(GoldMiner._IsPlaySound){
+					this._effectSound.source = "sounds/createScore.mp3";
+					this._effectSound.target = score;
+					this._effectSound.play();
+				}
+				
+				// 添加到分数榜的页面中
+				this.groScoreInfo.addElement(score);
+				// 创建完毕之后，开始移动分数
+				this.moveScoreToCurrentScore(score);
+			}
+			
+			/**	移动分数到当前分数榜
+			 * 	@param score:要移动的分数对象-LinkButton
+			 * */
+			private function moveScoreToCurrentScore(score:LinkButton):void{
+				// 先移动一半
+				this._moveScore.xFrom = score.x;
+				this._moveScore.xTo = 160;
+				this._moveScore.yFrom = score.y;
+				this._moveScore.yTo = 35;
+				this._moveScore.target = score;
+				this._moveScore.duration = 300;
+				this._moveScore.play();
+				
+				// 先放到的1.5倍
+				this._zoomScore.originX = score.width/2.0;
+				this._zoomScore.originY = score.height/2.0;
+				this._zoomScore.zoomHeightFrom = 0.5;
+				this._zoomScore.zoomHeightTo = 1.8;
+				this._zoomScore.zoomWidthFrom = 0.5;
+				this._zoomScore.zoomWidthTo = 1.8;
+				this._zoomScore.target = score;
+				this._zoomScore.duration = 300;
+				this._zoomScore.play();
+				
+				// 等到移动和放大完毕之后，等待一会儿，在移动和缩小
+				setTimeout(function():void{
+					// 移动到当前分数榜
+					_moveScore.xFrom = 160;
+					_moveScore.xTo = 50;
+					_moveScore.yFrom = 35;
+					_moveScore.yTo = lnkCurrPrice.y;
+					_moveScore.target = score;
+					_moveScore.duration = _againMoveDuration;
+					_moveScore.play();
+					
+					// 缩小到当前分数榜
+					_zoomScore.originX = score.width/2.0;
+					_zoomScore.originY = score.height/2.0;
+					_zoomScore.zoomHeightFrom = 1.5;
+					_zoomScore.zoomHeightTo = 1;
+					_zoomScore.zoomWidthFrom = 1.5;
+					_zoomScore.zoomWidthTo = 1;
+					_zoomScore.target = score;
+					_zoomScore.duration = _againMoveDuration;
+					_zoomScore.play();
+					
+					// 等待播放音效，加分音效
+					setTimeout(function():void{
+						// 播放音效，
+						if(GoldMiner._IsPlaySound){
+							_effectSound.source = "sounds/plusScore.mp3";
+							_effectSound.target = score;
+							_effectSound.play();
+						}
+					},_againMoveDuration-200);
+					
+					// 等到完全移动完毕之后，开始加分
+					setTimeout(function():void{
+						// 获取这个分值
+						var price:int = parseInt(score.label.substr(1));
+						GoldMiner._currPrice += price;		// 累加到当前分数上
+						// 从分数榜上删除这个对象，释放资源
+						groScoreInfo.removeElement(score);
+						
+						// 显示默认的钩子，清空钩住东西的钩子图片
+						hook.imgHook.visible = true;
+						hook.graspTarget.source = "";
+						
+						// 启用钩子摆甩的效果
+						hookEnabledRotate();
+					},_againMoveDuration+5);
+				},600);
+			}
+			
+			/**	将绳索放下，如果绳索的长度大于了750px，
+			 * 	那么就自动向上拉绳索	*/
+			private function dropCordHook():void{
+				// 是否可以游戏，如果为false，就不可以
+				if(!this._IsPlayGame){
+					return;
+				}
+				
+				// 向下放绳索，每一毫秒向下放5px
+				this.hook._hookLength += 5;
+				
+				// 判断钩子是否碰到了东西，如果没有碰到，就返回字符串空	""
+				var graspSrc:String = this.validateObjList();
+				if(graspSrc != ""){
+					// 播放声音音效
+					if(GoldMiner._IsPlaySound){
+						this.playGraspSomethingEffectSound(graspSrc);
+					}
+					
+					// 显示向上拉绳索的老头
+					this.geezerUpVisible(true);
+					
+					// 隐藏和清空所有老头的图片，留着向上拉绳子的老头
+					this.hideGeezer(2);
+					
+					// 获取这个东西拖拽的间距，每一毫秒向上拖拽的间距
+					var duration:Number = this.countPullCordDuration(graspSrc);
+					// 判断力量类型属于哪一个类型
+					if(GoldMiner._powerType == 1){			// 力量类型为购买了生力水
+						duration = duration+1;
+					}else if(GoldMiner._powerType == 2){		// 力量类型为Strength力量，问号袋子中的
+						duration = 15;
+					}
+					// 向上拉绳子，
+					this.pullCordHook(duration);
+					return ;
+				}
+				
+				// 如果绳子长度大于750px，就向上拉绳子
+				if(this.hook._hookLength >= 750){	
+					// 显示向上拉绳索的老头
+					this.geezerUpVisible(true);
+					
+					// 隐藏和清空所有老头的图片，留着向上拉绳子的老头
+					this.hideGeezer(2);
+					
+					// 向上拉绳子	什么都没有抓到，默认15
+					this.pullCordHook(15);
+				}else{
+					// 每一毫秒向下放绳子5px
+					setTimeout(this.dropCordHook,1);
+				}
+			}
+			
+			/**	验证存放所有对象的集合，是否与钩子碰撞
+			 * 	如果，有东西和钩子碰撞了，就返回这个碰撞到钩子的物品对应的钩子图片
+			 * 	@return 返回空，说明没有碰到任何东西
+			 * 	*/
+			private function validateObjList():String{
+				
+				/**	钩子抓住的东西的引用 - 局部变量	*/
+				var graspObj:Image;
+				
+				// 遍历存放所有东西的集合，钩子是否碰到了他们
+				for (var i:int = 0 ; i < this._objList.length ; i ++){
+					var obj:Image = this._objList[i] as Image;
+					// 判断每一个东西是否与钩子上的点碰到了
+					if (this.hitTestObj(obj) == null){
+						continue;
+					}else{
+						// 记录被抓住的对象
+						graspObj = obj;
+						break;
+					}
+				}
+				
+				// 如果，没有碰到任何东西，就直接返回false
+				if(graspObj == null){
+					return "";
+				}else{
+					// 隐藏被抓住的东西，从集合中删除抓住的这个东西
+					graspObj.visible = false;
+					this._objList.removeItemAt(this._objList.getItemIndex(graspObj));
+					
+					// 获取钩住的东西的路径，并显示被钩住的对象对应的图片
+					var src:String = this.validateGraspObject(graspObj);
+					this.hook.graspTarget.source = src;
+					
+					// 如果，钩住的是超大金子，那么就显示光效
+					if (src == "images/g_gold4.png"){
+						this.showSuperBigGoldEffect();
+					} else if (src == "images/g_tntLid.png") {		// 否则，如果是tnt炸药
+						graspObj.y += 50;
+						graspObj.width = 150;
+						graspObj.height = 150;
+						graspObj.source = "swf/blast.swf";
+						graspObj.visible = true;
+						
+						// 验证tnt爆炸是否炸到其他东西
+						this.validateTNTBombHitOtherObject(graspObj);
+					}
+					
+					// 隐藏默认的钩子
+					this.hook.imgHook.visible = false;
+					return src;
+				}
+			}
+			
+			/**	验证TNT爆炸后是否与其他东西碰到，
+			 * 	如果碰到了，就删除这个东西。
+			 * 	@param TNTBlast:TNT爆炸的效果对象，TNT桶爆炸后的效果的对象
+			 **/
+			private function validateTNTBombHitOtherObject(TNTBlast:Image):void{
+				for(var i:int = 0 ; i < this._objList.length ; i ++){
+					var obj:Image = this._objList[i] as Image;
+					var x:int = TNTBlast.x;
+					var y:int = TNTBlast.y;
+					var xx:int = TNTBlast.x + TNTBlast.width;
+					var yy:int = TNTBlast.y + TNTBlast.height;
+					// 验证集合中是否有东西和TNT爆炸的效果碰到
+					if(TNTBlast.hitTestObject(obj)){
+						// 从集合中删除，这个碰到炸药的对象
+						this._objList.removeItemAt(this._objList.getItemIndex(obj));
+						// 从地下层中删除这个对象
+						this.groStratum.removeElement(obj);
+						// 如果，有TNT碰到了这个TNT，那么，在一次验证碰到的TNT是否与其他东西再次碰到
+						if(obj.source == "images/tnt.png"){
+							this.validateTNTBombHitOtherObject(obj);
+						}
+					}
+				}
+			}
+			
+			/**	验证获取钩住对象是哪类型的，
+			 * 	返回对应这个对象的钩住物品的图片的路径
+			 * 	@param graspObj:要验证这个对象的类型对应哪一个钩住物品的图片的路径*/
+			private function validateGraspObject(graspObj:Image):String{
+				var grasp:String = "";
+				
+				// 获取钩住的东西的source属性值
+				switch(graspObj.source.toString()){
+					case "swf/gold.swf":		// 金子
+						if (graspObj.width == 10){				// 小金子
+							grasp = "images/g_gold1.png";
+						} else if (graspObj.width == 18){		// 中金子
+							grasp = "images/g_gold2.png";
+						} else if (graspObj.width == 38){		// 大金子
+							grasp = "images/g_gold3.png";
+						} else if (graspObj.width == 50){		// 超大金子
+							grasp = "images/g_gold4.png";
+						}
+						break;
+					case "images/diamond.png":					// 钻石
+						grasp = "images/g_diamond.png";
+						break;
+					case "images/roundStone.png":				// 圆形石头
+						grasp = "images/g_roundStone.png";
+						break;
+					case "images/triangleStone.png":			// 三角石头
+						grasp = "images/g_triangleStone.png";
+						break;
+					case "images/bag.png":						// 问号袋子
+						grasp = "images/g_bag.png";
+						break;
+					case "swf/mouse.swf":						// 耗子
+						grasp = "images/g_mouse.png";
+						break;
+					case "swf/diamondMouse.swf":				// 叼着钻石的耗子
+						grasp = "images/g_diamondMouse.png";
+						break;
+					case "images/tnt.png":						// tnt炸药
+						grasp = "images/g_tntLid.png";
+						// 每次抓住TNT，钩子的寿命就减少
+						if(GoldMiner._currHookLife>0){
+							GoldMiner._currHookLife--;
+							
+							// 如果不是会员
+							if(!GoldMiner._IsMember){
+								if(GoldMiner._currHookLife == 2){
+									this.hook.imgHook.source = "images/hook1.png";
+								}else if(GoldMiner._currHookLife == 1){
+									this.hook.imgHook.source = "images/hook2.png";
+								}
+							}else{		// 如果是会员
+								if(GoldMiner._currHookLife == 6){
+									this.hook.imgHook.source = "images/hook1.png";
+								}else if(GoldMiner._currHookLife == 3){
+									this.hook.imgHook.source = "images/hook2.png";
+								}
+							}
+						}
+						
+						// 如果，钩子已经完全损坏，就直接结束游戏
+						if(GoldMiner._currHookLife<=0){
+							this.imgCordUp.source = "";
+							this.imgExit_clickHandler();
+						}
+						break;
+					case "images/bone.png":						// 骨头棍
+						grasp = "images/g_bone.png";
+						break;
+					case "images/head.png":						// 骷髅头
+						grasp = "images/g_head.png";
+						break;
+				}
+				
+				return grasp;
+			}
+			
+			/**	计算向上拉绳索的延迟时间
+			 * 	@return :返回钩住的东西对应的重量，向上拉的延迟时间
+			 * */
+			private function countPullCordDuration(G_ImageSource:String):Number{
+				var duration:Number = 0 ;
+				
+				// 判断向上拉的是什么
+				switch (G_ImageSource){
+					case "images/g_gold1.png":				// 小金子
+					case "images/g_diamond.png":			// 钻石
+					case "images/g_bone.png":				// 骨头棍
+					case "images/g_head.png":				// 骷髅头
+					case "images/g_mouse.png":				// 老鼠
+					case "images/g_diamondMouse.png":		// 叼着钻石的老鼠
+						duration = 6;
+						break;
+					case "images/g_gold2.png":				// 中金子
+						duration = 3;
+						break;
+					case "images/g_gold3.png":				// 大金子
+						duration = 0.75;
+						break;
+					case "images/g_gold4.png":				// 超大金子
+						duration = 0.55;
+						break;
+					case "images/g_roundStone.png":			// 圆形石头
+						duration = 1;
+						break;
+					case "images/g_triangleStone.png":		// 三角石头
+						duration = 0.7;
+						break;
+					case "images/g_tntLid.png":				// TNT炸药
+						duration = 8;
+						break;
+					case "images/g_bag.png":				// 问号袋子
+						// 如果是问号袋子，就随机一个速度
+						var bag:int = Math.random()*7;
+						switch(bag){
+							case 0:
+								duration = 6;
+								break;
+							case 1:
+								duration = 3;
+								break;
+							case 2:
+								duration = 0.75;
+								break;
+							case 3:
+								duration = 0.55;
+								break;
+							case 4:
+								duration = 1;
+								break;
+							case 5:
+								duration = 0.7;
+								break;
+							case 6:
+								duration = 8;
+								break;
+						}
+						break;
+				}
+				
+				return duration;
+			}
+			
+			/**	将绳索向上拉，
+			 * 	@param space：每一毫秒向上拉拽的距离，
+			 * 	数字越小，需要花费的时间越多 
+			 * */
+			private function pullCordHook(space:Number):void{
+				// 是否可以游戏，如果为false，就不可以
+				if(!this._IsPlayGame){
+					return;
+				}
+				
+				// 绳索向上拉拽
+				this.hook._hookLength -= space;
+				
+				// 如果绳索小于0，那么就设置为0，够则继续向上拉绳索
+				if(this.hook._hookLength <= 0){
+					this.hook._hookLength = 0;
+					
+					// 计算抓住东西价值多少金币，并播放音效
+					if(this.hook.graspTarget.source != ""){
+						// 函数中调用了，再次启用钩子摆甩的方法。并且显示默认的钩子，和清空了钩住的东西
+						this.countGraspSometingExchangePrice(this.hook.graspTarget.source.toString());
+					}else{
+						// 启用钩子摆甩的效果
+						this.hookEnabledRotate();
+					}
+				}else if(this.hook._hookLength <= 50){
+					// 设置默认的老头的样子可见
+					this.imgGeezer.visible = true;
+					
+					// 清空所有老头的姿势
+					this.hideGeezer(1);
+					
+					// 每一毫秒向下放绳子5px
+					setTimeout(this.pullCordHook,1,space);	
+				}else{
+					// 每一毫秒向下放绳子5px
+					setTimeout(this.pullCordHook,1,space);						
+				}
+			}
+			
+			/**	测试判断钩子上的dot与那一个对象碰到了
+			 * 	如果，碰到了就返回这个对象，
+			 * 	否则就返回null	**/
+			private function hitTestObj(obj:Image):Image{
+				if(this.hook.imgHitDot.hitTestObject(obj)){
+					return obj;
+				}else{
+					return null;
+				}
+			}
+			
+			/**	设置游戏地图	*/
+			private function setGameMap():void{
+				// 清除之前的所有钻石
+				this.groStratum.removeAllElements();
+				// 清除所有东西的集合
+				this._objList.removeAll();
+
+				/**		当前要加载的游戏关卡地图		*/
+				var mapIndex:int = GoldMiner._currLevel-1;
+				// 如果要加载的游戏地图关数>15(16和关以上)，就随机前15关的地图
+				if(mapIndex > 15){
+					mapIndex = Math.random()*15;
+				}
+				
+				// 获取当前游戏关卡对应的游戏地图
+				var map:ArrayCollection = this._mapList[mapIndex].Row;
+				
+				// 遍历本关地图中每行的东西（金子、石头、耗子。。。。）
+				for(var row:int = 0 ; row < map.length ; row++){
+					// 获取每一行的代码
+					var list:String = map[row];
+					
+					// 遍历每一行的每一个代码（代号）
+					for(var col:int = 0 ; col < list.length ; col++){
+						// 地图上的物品
+						var object:Image;
+						
+						// 获取每一个代号
+						var obj:String = list.charAt(col);
+						
+						// 判断这个代号对应什么东西
+						switch(obj){
+							case "1":		// 金子
+								// 随机一个数字，决定金子的大小
+								var size:int = Math.random()*10;
+								
+								// 创建金子
+								object = new Image();
+								object.x = 97.5*col;
+								object.y = 65.5*row;
+								object.source = "swf/gold.swf";
+								
+								switch(size){
+									case 0:
+									case 1:
+									case 2:
+									case 3:
+										object.width = 10;
+										object.height = 10;
+										break;
+									case 4:
+									case 5:									
+									case 6:
+										object.width = 18;
+										object.height = 18;
+										break;
+									case 7:
+									case 8:
+										object.width = 38;
+										object.height = 38;
+										break;
+									case 9:
+										object.width = 50;
+										object.height = 50;
+										break;
+								}
+								break;
+							case "2":					// 钻石
+								object = new Image();
+								object.x = 97.5*col;
+								object.y = 65.5*row;
+								object.source = "images/diamond.png";
+								object.width = 20;
+								object.height = 20;
+								object.maintainAspectRatio = false;
+								break;
+							case "3":					// 石头
+								object = new Image();
+								object.x = 97.5*col;
+								object.y = 65.5*row;
+								
+								// 随机	圆石头     还是	三角石头
+								var src:int = Math.random()*2;
+								switch(src){
+									case 0:
+										object.source = "images/roundStone.png";
+										break;
+									case 1:
+										object.source = "images/triangleStone.png";
+										break;
+								}
+								break;
+							case "4":						// 问号袋子
+								object = new Image();
+								object.x = 97.5*col;
+								object.y = 65.5*row;
+								object.source = "images/bag.png";
+								break;
+							case "5":						// 老鼠
+								object = new Image();	
+								object.x = 97.5*col;
+								object.y = 65.5*row;
+								object.source = "swf/mouse.swf";
+								this.moveMouse(object);
+								break;
+							case "6":						// 叼着钻石的耗子
+								object = new Image();
+								object.x = 97.5*col;
+								object.y = 65.5*row;
+								object.source = "swf/diamondMouse.swf";
+								this.moveMouse(object);
+								break;
+							case "7":						// tnt炸药
+								object = new Image();
+								object.x = 97.5*col;
+								object.y = 65.5*row;
+								object.source = "images/tnt.png";
+								break;
+							case "8":						// 骷髅头
+								object = new Image();
+								object.x = 97.5*col;
+								object.y = 65.5*row;
+								// 随机石头的形状
+								var r:int = Math.random()*2;
+								switch(r){
+									case 0:
+										object.source = "images/bone.png";
+										break;
+									case 1:
+										object.source = "images/head.png";
+										break;
+								}
+								break;
+						}
+						
+						// 0在地图中是空的，不存在任何东西，如果有东西就添加到页面中（不为零）
+						if(obj != "0"){
+							// 添加到地层上
+							this.groStratum.addElement(object);
+							// 将创建出来的东西，添加到集合中
+							this._objList.addItem(object);
+						}
+					}
+				}
+			}
+			
+			/**	设置当前游戏关数对应的完成分数	*/
+			public function setCurrLevelWinPrice():void{
+				if(GoldMiner._currLevel <= 3){						// 前三关
+					GoldMiner._winPrice = 650*GoldMiner._currLevel;
+				}else if(GoldMiner._currLevel <= 6){					// 前六关
+					GoldMiner._winPrice = 850*GoldMiner._currLevel;
+				}else if(GoldMiner._currLevel <= 9){					// 前九关
+					GoldMiner._winPrice = 1250*GoldMiner._currLevel;
+				}else if(GoldMiner._currLevel <= 10){				// 前十关
+					GoldMiner._winPrice = 1550*GoldMiner._currLevel;
+				}else if(GoldMiner._currLevel <= 15){				// 前十五关
+					GoldMiner._winPrice = 1850*GoldMiner._currLevel;
+				}else{											// 十五关之后
+					GoldMiner._winPrice = 2050*GoldMiner._currLevel;
+				}
+			}
+			
+			/**	计算抓住东西转换成金币，
+			 * 	@param graspSource:要转换成金币的东西的source，抓住图片的路径
+			 * */
+			private function countGraspSometingExchangePrice(graspSource:String):void{
+				// 显示分数，并移动到当前分数线，并播放声音
+				this.showScoreAndPlusScore(graspSource);
+			}
+
+			/**		爆竹摧毁抓住的东西 		*/
+			private function bombWreckGraspObject():void{
+				// 设置不可以再次投掷爆竹
+				this._IsThrowBomb = false;
+				
+				// 获取拥有的最后一个爆竹
+				var bomb:Image = this._bombList[GoldMiner._currBombNum-1] as Image;
+				
+				// 还原钩子控件中的爆竹的坐标
+				hook.imgBomb.x = 30;
+				hook.imgBomb.y = -90;
+				// 设置钩子控件中的爆竹不可见
+				hook.imgBomb.visible = false;
+				
+				// 将爆竹集合中的最后一个爆竹移动到老头头顶
+				this._moveScore.xFrom = bomb.x;
+				this._moveScore.xTo = this.imgGeezer.x+this.imgGeezer.width;
+				this._moveScore.yFrom = bomb.y;
+				this._moveScore.yTo = this.imgGeezer.y;
+				this._moveScore.duration = 50;
+				this._moveScore.target = bomb;
+				this._moveScore.play();
+				
+				// 减少一个爆竹的数量
+				GoldMiner._currBombNum--;
+				// 设置爆竹可见
+				bomb.visible = true;
+				
+				// 等待爆竹移动到老头头顶时，隐藏这个爆竹，让钩子控件中的爆竹开始移动到钩子位置
+				setTimeout(function():void{
+					// 设置爆竹集合中的移动出来的爆竹-不可见
+					bomb.visible = false;
+					// 移动钩子控件中的爆竹   到   钩子控件中的   HitDot 对象的位置
+					_moveScore.xFrom = hook.imgBomb.x;
+					_moveScore.xTo = hook.imgHitDot.x;
+					_moveScore.yFrom = hook.imgBomb.y;
+					_moveScore.yTo = hook.imgHitDot.y;
+					_moveScore.duration = 200;
+					_moveScore.target = hook.imgBomb;
+					_moveScore.play();
+					
+					// 显示钩子控件中的爆竹对象(图片)
+					hook.imgBomb.visible = true;
+					
+					// 等待爆竹移动到HitDot的坐标时，
+					setTimeout(function():void{
+						// 播放声音，爆炸的声音
+						_effectSound.source = "sounds/graspTNT.mp3";
+						_effectSound.target = hook.imgBomb;
+						_effectSound.play();
+						// 创建爆炸的Flash图片
+						hook.createBlastByMoveBomb();
+
+						// 等待创建爆炸效果完毕之后，
+						setTimeout(function():void{
+							_IsRotate = true;
+							_rotateLeftToRight.end();
+							_rotateRightToLeft.end();
+							
+							// 隐藏老头
+							hideGeezer(1);
+							imgGeezer.visible = true;
+							
+							// 允许再次投掷爆竹
+							_IsThrowBomb = true;
+						},500);
+					},200);
+				},100);
+			}
+			
+			/**			倒计时计算时间			*/
+			private function countDownCurrentTime():void{
+				// 如果，还有剩余时间，就继续倒计时
+				if(this._currTime >= 0){
+					// 倒计时
+					this._currTime --;
+					// 如果，还有最后十秒钟时间，就显示提示图片
+					if(this._currTime == 9){
+						/**	倒计时的图片显示	*/
+						this._downtime = setInterval(function():void{
+							if(_currTime>0 && _currTime<10){
+								if(imgTimeover.visible){
+									imgTimeover.visible = false;
+								}else{
+									imgTimeover.visible = true;
+								}
+							}else{
+								// 倒计时时间，小于等于0时，隐藏提示图片背景
+								imgTimeover.visible = false;
+							}
+						},500);
+					}
+					// 一秒调用一次，
+					if(this._currTime > 0){
+						setTimeout(this.countDownCurrentTime,1000);
+					}
+					// 倒计时时间，小于等于0时，隐藏提示图片背景
+					if(this._currTime > 10){
+						// 清除setInterval
+						clearInterval(this._downtime);
+						this.imgTimeover.visible = false;
+					}
+				}
+				// 当时间结束时（小于等于0），释放downtime
+				if(this._currTime <= 0){
+					// 停止游戏
+					this.stopGame();
+					// 设置游戏停止原因，为false是游戏时间结束
+					this._IsStopOrOver = false;
+					
+					// 清除setInterval
+					clearInterval(this._downtime);
+					this.imgTimeover.visible = false;
+				}
+			}
+			
+			/**			停止游戏			*/
+			private function stopGame():void{
+				// 停止游戏
+				this._IsPlayGame = false;
+				// 暂停老头
+				this.imgGeezer.visible = true;
+				this.hideGeezer(1);
+
+				// 检查分数是否加完，加完分数才显示时间结束页面
+				this.validateScorePlusIsEnd();
+			}
+			
+			/**			验证加分是否结束，如果结束，自己显示结束画面		*/
+			private function validateScorePlusIsEnd():void{
+				if(this._zoomScore.isPlaying || this._moveScore.isPlaying || this.hook._hookLength<=0 && this.hook.graspTarget.source!=""){
+					setTimeout(this.validateScorePlusIsEnd,100);	// 继续检查调用
+				}else{
+					// 删除清空地下层中的元素
+					this.groStratum.removeAllElements();
+					// 清除所有东西的集合
+					this._objList.removeAll();
+					
+					// 清除道具状态，但不清除爆竹数量
+					this.renewPropertiesStatus();
+					
+					// 显示时间结束页面
+					this.timeOver.visible = true;
+					// 隐藏全屏的button
+					this.btnFull.visible = false;
+					
+					// 还原钩子
+					this.hook.imgHook.visible = true;
+					this.hook.graspTarget.source = "";
+					this.hook._hookLength = 0;
+					
+					// 验证是否过关，弹出时间结束页面	Timeover
+					this.timeOver.validatePassLevel();
+				}
+			}
+
+			/**			设置所有游戏状态到初始化，一般用于第一关设置		*/
+			public function setGameStatusToInitialize():void{
+				// 初始化游戏状态
+				if(GoldMiner._IsMember){
+					GoldMiner._currHookLife = 10;
+					GoldMiner._currBombNum = 3;
+				}else{
+					GoldMiner._currHookLife = 3;
+					GoldMiner._currBombNum = 0;
+				}
+				
+				// 设置隐藏抓住的东西，显示默认的老头
+				this.hook.graspTarget.source = "";
+				this.imgCordUp.source = "swf/cordUp.swf";
+				this.imgCordDown.source = "swf/cordDown.swf";
+				this.imgGeezer.visible = true;
+				this.hideGeezer(1);
+				
+				// 设置还原钩子的状态
+				this.hook.imgHook.source = "images/hook.png";
+				this.hook.imgHook.visible = true;
+				GoldMiner._currLevel = 1;
+				GoldMiner._currPrice = 0;
+				GoldMiner._winPrice = 0;
+				// 还原道具状态
+				this.renewPropertiesStatus();
+			}
+			
+			/**	还原道具状态，钻石水，幸运草，力量类型，石头书，但不还原爆竹数量	
+			 * 	，，，在这里还设置了游戏时间，，
+			 * 	允许游戏-（_IsPlayGame = true）	*/
+			private function renewPropertiesStatus():void{
+				// 游戏时间结束，还原辅助道具的状态
+				GoldMiner._IsHighDiamond = false;
+				GoldMiner._IsLuckStatus = false;
+				GoldMiner._powerType = 0;
+				GoldMiner._stoneChangeCount = -1;
+			}
+			
+			/**			开始游戏		*/
+			public function playGame():void{
+				// 显示巨大Button和隐藏时间结束页面 
+				this.btnFull.visible = true;
+				this.timeOver.visible = false;
+				
+				// 验证是否为会员
+				this.validateIsMember();
+				
+				// 设置当前游戏时间为60秒
+				this._currTime = 60;
+				
+				// 设置游戏地图
+				this.setGameMap();
+				
+				// 设置显示爆竹的可视个数
+				this.setBombVisible();
+				
+				// 允许游戏
+				this._IsPlayGame = true;
+				
+				// 设置钩子旋转
+				this._IsRotate = true;
+				this.rotateHookFormLeftToRight();
+				
+				// 给程序设置焦点
+				this.setFocus();
+				
+				// 如果，游戏结束是因为游戏时间结束，就再次倒计时
+				if(!this._IsStopOrOver){
+					this.countDownCurrentTime();
+				}
+			}
+			
+			/**		验证是否为会员		*/
+			private function validateIsMember():void{
+				// 是否为会员
+				if(GoldMiner._IsMember){
+					this.cpMain.imgVIP.source = "images/ico_vip.png";
+					this.cpMain.imgVIP.toolTip = "您已成为会员，可享受尊贵服务。";
+				}else{
+					this.cpMain.imgVIP.source = "images/ico_vip_gray.png";
+					this.cpMain.imgVIP.toolTip = "您还不是会员，不能想用会员服务。\n点击进入官网了解详情。";
+				}
+			}
+			
+			
+			
+// -----------------------			事件			---------------------------------------			
+			
+
+			/***	接收程序键盘事件			*/
+			protected function application_keyDownHandler(event:KeyboardEvent):void
+			{
+				// TODO Auto-generated method stub
+				//  获取用户按下的按键
+				var keyCode:int = event.keyCode;
+				
+				// 按键判断
+				switch(keyCode){
+					case 38:
+						if (this.hook._hookLength <= 50 ||				// 钩子的长度小于50
+							this.hook.graspTarget.source == "" || 		// 钩住的对象的路径为空
+							!this._IsThrowBomb || 						// _IsThrowBomb为false
+							GoldMiner._currBombNum <= 0){					// 拥有的爆竹数量小于等于0
+							break;			// 返回，不执行下面的操作
+						}
+						// 扔爆竹
+						this.bombWreckGraspObject();
+						break;
+					case 40:
+						// 如果绳索没有还原到原点，或者钩子没有在摆甩，就不允许，放绳索下去
+						if(this.hook._hookLength != 0 || !this._IsRotate){
+							break;
+						}
+						
+						// 禁止钩子和绳索再摆动
+						this.hookDisableRotate();
+
+						// 显示放下绳索的老头
+						this.geezerDownVisible(true);
+						// 播放绳索下滑的声音
+						GoldMiner._goldMiner.playEffectSound("sounds/cordDown.mp3",this.imgCordDown);
+
+						// 隐藏和清空所有老头的图片，留着向下放绳子的老头
+						this.hideGeezer(3);
+						
+						// 放下钩子和绳索
+						this.dropCordHook();
+						break;
+				}
+			}
+
+			/**		地图请求得到响应		*/
+			protected function mapSrv_resultHandler(event:ResultEvent):void
+			{
+				// TODO Auto-generated method stub
+				this._mapList = event.result.Map.Level;
+				
+				// 初始化还原所有道具状态
+				this.setGameStatusToInitialize();
+			}
+
+			/**				单击退出本关，按钮			*/
+			protected function imgExit_clickHandler():void
+			{
+				// TODO Auto-generated method stub
+				// 如果游戏已经停止，就禁止再次点击
+				if(this._IsPlayGame == false)
+					return;
+				
+				// 停止游戏
+				this.stopGame();
+				// 设置游戏退出类型，为点击退出按钮
+				this._IsStopOrOver = true;
+				
+				// 清除setInterval
+				clearInterval(this._downtime);
+				this.imgTimeover.visible = false;
+			}
+
+		]]>
+	</fx:Script>
+
+	
+	<!---		地层图片		-->
+	<mx:Image id="imgStratum" y="120" visible="true"/>
+	
+	<!---			地下层			-->
+	<s:Group id="groStratum" x="1" y="120" width="100%" height="590">
+		<!--		小金子		-->
+		<mx:Image source="swf/gold.swf" x="200" y="250" width="10" height="10" />
+		<!--		中金子		-->
+		<mx:Image source="swf/gold.swf" x="200" y="200" width="18" height="18" />
+		<!--		大金子		-->		
+		<mx:Image source="swf/gold.swf" x="200" y="50" width="38" height="38" alpha="1" />
+		<!--		超大金子		-->
+		<mx:Image source="swf/gold.swf" x="100" y="50" width="50" height="50" alpha="1" />
+	</s:Group>
+		
+	<!---		积分信息层		-->
+	<s:Group id="groScoreInfo">
+		
+		<!---		分数信息背景图			-->
+		<mx:Image source="images/scoreInfo.png" visible="true" />
+		
+		<!--		三个老头		-->
+		<!---		默认的老头的图片		-->
+		<mx:Image id="imgGeezer" source="images/geezer.png" visible="true"
+				  width="108" height="90" maintainAspectRatio="false"
+				  x="456" y="16"/>
+		<!---		向上拉绳子的老头		-->
+		<mx:Image id="imgCordUp" visible="true"
+				  x="510" y="60" width="55" height="65" />
+		<!---		向下放绳子的老头		-->
+		<mx:Image id="imgCordDown" visible="true"
+				  x="510" y="60" width="45" height="44" />
+		<!---		获取Strength力量的老头				-->
+		<mx:Image id="imgStrengthGeezer" source="swf/strengthGeezer.swf" visible="false"
+				  x="510" y="60" width="60" height="68" />
+		
+		<!---		钩子的图片		-->
+		<view:Hook id="hook" x="471" y="85"/>
+		
+		<!---		显示当前分数的LinkButton			-->
+		<mx:Label id="lnkCurrPrice" x="115" y="14" styleName="curr-score" text="{GoldMiner._currPrice}"/>
+		<mx:Label x="178" y="59" styleName="winScore" text="{GoldMiner._winPrice}"/>
+		<!---		倒计时10秒，背景图片			-->
+		<mx:Image id="imgTimeover" source="images/timeover_white.png" 
+				  x="910" y="16" visible="true"
+				  width="31" height="36" maintainAspectRatio="false"/>
+		<mx:Label x="915" y="14" styleName="downTimeAndLevel" text="{this._currTime.toString()}" />
+		<mx:Label x="873" y="54" styleName="downTimeAndLevel" text="{GoldMiner._currLevel>=10?GoldMiner._currLevel:' '+GoldMiner._currLevel}" />
+		
+		<!---		抓住问号袋子，获取力量的Strength文字图片				-->
+		<mx:Image id="imgStrengthText" source="images/strength.png" visible="false"
+				  x="281" y="26" 
+				  width="180" height="100" 
+				  maintainAspectRatio="false" />
+		<!---		袋子中的爆竹		-->
+		<mx:Image id="imgBagBomb" source="images/bomb.png" visible="false" x="284" y="61" width="7" height="30" />
+
+	</s:Group>
+		
+	<!---			巨大的Button			-->
+	<s:Button id="btnFull" width="100%" height="100%" alpha="0" visible="false" />
+	
+	<!---		时间结束，统计分数的控件			-->
+	<view:TimeOver id="timeOver" width="100%" height="100%" visible="false" />
+	
+	<!---		控制面板，目前只控制声音和会员服务		 visible="{this.btnFull.visible}"	-->
+	<view:ControlPanel id="cpMain" x="590" y="-10" visible="{this.btnFull.visible}">
+	</view:ControlPanel>
+	
+	<!---		退出本关按钮层		-->
+	<s:Group id="groExitCurrLevel" visible="{this.btnFull.visible}" x="721" y="16" >
+		<mx:Image source="images/exitLevelBottom.png"
+				  width="100" height="75"
+				  mouseEnabled="false" mouseChildren="false"/>
+		<mx:Image id="imgExit" source="images/exitLevelTop.png"
+				  x="0" y="0" width="99.5" height="75" alpha="0.8" buttonMode="true"
+				  rollOver="{this.imgExit.alpha = 0.2;}"
+				  rollOut="{this.imgExit.alpha = 0.8;}"
+				  click="imgExit_clickHandler()"/>
+		<mx:Image source="images/exitLevelText.png"
+				  x="2" y="2" width="95" height="70"
+				  mouseEnabled="false" mouseChildren="false"/>
+	</s:Group>
+	
+</s:Application>

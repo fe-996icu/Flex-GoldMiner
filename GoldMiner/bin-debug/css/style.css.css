@@ -1,0 +1,13 @@
+/* CSS file */
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+
+.titleInfo{
+	borderStyle: none;
+	backgroundAlpha: 1;
+	backgroundColor: #ffd034;
+	fontFamily: Arial Black;
+	fontSize: 18;
+	fontWeight: bold;
+	dropShadowEnabled: false;
+}

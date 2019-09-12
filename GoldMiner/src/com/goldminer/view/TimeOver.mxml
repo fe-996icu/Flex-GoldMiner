@@ -1,0 +1,656 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group creationComplete="loaded();"
+		 xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 width="975" height="710">
+	<s:layout>
+		<s:BasicLayout/>
+	</s:layout>
+	
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+		<!---		开始在光效		-->			
+		<mx:Glow id="_glow" 
+				 blurXFrom="1" blurXTo="500" 
+				 blurYFrom="1" blurYTo="500" 
+				 color="yellow" duration="1000">
+		</mx:Glow>
+	</fx:Declarations>
+	
+	<fx:Style source="css/timeover.css"></fx:Style>
+	
+	<fx:Script>
+		<![CDATA[
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.effects.Move;
+			import mx.effects.Zoom;
+			import mx.events.EffectEvent;
+			import mx.managers.PopUpManager;
+			
+			
+			
+			
+			
+// ------------------------		成员变量			---------------------------------------			
+						
+			/**			放大的对象			*/
+			private var _zoom:Zoom = new Zoom();
+			
+			/**			移动的对象			*/
+			private var _move:Move = new Move();
+			
+			[Bindable]
+			/**	视图堆栈当前选中的索引
+			 *  _vsCurrIndex: 0 ：验证是否过关，目标分数。
+			 * 						 1：购物地点
+			 * 						 2：游戏加载页面
+			 * */
+			public var _vsCurrIndex:int = 0;
+			
+			/**			是否购买了商品，如果没有就更换奸商的脸-生气			*/
+			private var _IsBuy:Boolean = false;
+			
+			/**			提交分数的主页面		*/
+			private var _submitScore:SubmitScore = new SubmitScore();
+			
+			/**			存放商品的集合		*/
+			private var _goodsList:ArrayCollection = new ArrayCollection();
+			
+			/**			存放商品价格的集合			*/
+			private var _priceList:ArrayCollection = new ArrayCollection();
+			
+			/**			存放交易的金子的数组		*/
+			private var _goldArray:Array = new Array();
+			
+			/**			交易的金子移动的延迟时间			*/
+			private var _goldMoveDuration:int = 200;
+			
+			/**			是否可以再次点击下一关按钮		*/
+			public var _IsClickGoNextLevel:Boolean = true;
+			
+			/**			开始金子的Glow的target对象的数组			*/
+			private var _startGlowArray:Array = new Array();
+			
+			
+			
+			
+// ------------------		成员函数		---------------------------------------			
+						
+			/**			所有页面元素创建完毕之后		*/
+			private function loaded():void{
+				// 给所有商品添加到商品集合中
+				this._goodsList.addItem(this.imgBomb);
+				this._goodsList.addItem(this.imgLuckGrass);
+				this._goodsList.addItem(this.imgPowerWater);
+				this._goodsList.addItem(this.imgStoneBook);
+				this._goodsList.addItem(this.imgDiamondWater);
+				
+				// 把所有商品价格添加到集合中
+				this._priceList.addItem(this.lblBomb);
+				this._priceList.addItem(this.lblLuckGrass);
+				this._priceList.addItem(this.lblPowerWater);
+				this._priceList.addItem(this.lblStoneBook);
+				this._priceList.addItem(this.lblDiamondWatter);
+				
+				// 添加金子到集合中
+				this._goldArray.push(this.imgExchange1,this.imgExchange2);
+				
+				// 设置显示开始页面
+				this._vsCurrIndex = 2;
+				
+				this._startGlowArray.push(this.imgStart,this.imgGold);
+			}
+			
+			/**			设置显示商品和显示商品价格			*/
+			public function setShowGoodsAndShowGoodsPrice():void{
+				for(var i:int = 0 ; i < this._goodsList.length ; i ++){
+					var goods:Image = this._goodsList[i] as Image;
+					var goodsPrice:Label = this._priceList[i] as Label;
+					
+					// 随机一个数字
+					var num:int = Math.random()*400;
+					// 设置是否显示这个商品
+					goods.visible = num%2==0?true:false;
+					// 将商品价格保存到这个商品的name属性中
+					goods.name = num.toString();
+					
+					// 设置商品价格的visible和商品一致；
+					goodsPrice.visible = goods.visible;
+					// 这个商品可见，就设置对应的商品价格
+					goodsPrice.text = "$"+num;
+					
+					// 如果，关卡数大于10关，就显示所有商品
+					if(GoldMiner._currLevel >= 10){
+						goods.visible = true;
+						goodsPrice.visible = true;
+					}
+				}
+				
+				// 设置爆竹一直显示
+				this.imgBomb.visible = true;
+				this.lblBomb.visible = true;
+				
+				// 设置还没有购买任何商品
+				this._IsBuy = false;
+				// 设置可以点击下一关按钮
+				this._IsClickGoNextLevel = true;
+				// 设置奸商的脸的高度，默认的
+				this.imgFace.y = 357;
+			}
+			
+			/**			验证是否过关			*/
+			public function validatePassLevel():void{
+				// 设置第一页可见
+				this._vsCurrIndex = 0;
+				
+				// 设置游戏时间无限大，
+				GoldMiner._goldMiner._currTime = int.MAX_VALUE;
+				
+				// 隐藏过关和没过关的图片
+				this.imgPass.visible = false;
+				this.imgNotPass.visible = false;
+				// 隐藏目标分的层
+				this.groObjectiveScore.visible = false;
+				
+				// 判断，钩子是否完全损坏
+				if(GoldMiner._currHookLife==0){
+					this.imgNotPass.source = "images/hookBad.png";
+					// 移动显示没有过关的图片
+					this.showNotPassImage();
+					return;
+				}else{
+					this.imgNotPass.source = "images/nmyddfsText.png";
+				}
+				
+				// 判断是否过关
+				if(GoldMiner._currPrice >= GoldMiner._winPrice){
+					// 弹出过关图片
+					this.popUpPassImage();
+				}else{
+					// 移动显示没有过关的图片
+					this.showNotPassImage();
+				}
+			}
+			
+			/**			显示没有过关的图片			*/
+			private function showNotPassImage():void{
+				// 隐藏黄金矿工文字图片
+				this.imgAppName.visible = false;
+				// 移动显示没有过关的图片提示框
+				this._move.xFrom = 230;
+				this._move.xTo = 230;
+				this._move.yFrom = -this.imgNotPass.height;
+				this._move.yTo = this.imgNotPass.y;
+				this._move.target = this.imgNotPass;
+				this._move.duration = 2000;
+				this._move.play();
+				
+				// 显示没有过关的图片
+				this.imgNotPass.visible = true;
+				
+				// 等待没有过关的提示图片，完全显示之后，弹出提交分数的页面
+				setTimeout(this.popUpSubmitScore,2500);
+			}
+			
+			/**			弹出提交分数页面			*/
+			private function popUpSubmitScore():void{
+				PopUpManager.addPopUp(_submitScore,this,true);
+				PopUpManager.centerPopUp(_submitScore);
+				// 隐藏	没有过关的图片提示
+				imgNotPass.visible = false;
+			}
+			
+			/**			弹出过关图片			*/
+			private function popUpPassImage():void{
+				// 显示黄金矿工文字图片
+				this.imgAppName.visible = true;
+				// 开始放大过关图片
+				this._zoom.zoomHeightFrom = 0;
+				this._zoom.zoomHeightTo = 1;
+				this._zoom.zoomWidthFrom = 0;
+				this._zoom.zoomWidthTo = 1;
+				this._zoom.originX = this.imgPass.width/2.0;
+				this._zoom.originY = this.imgPass.height/3.0;
+				this._zoom.target = this.imgPass;
+				this._zoom.duration = 1500;
+				this._zoom.play();
+				
+				// 播放过关声音
+				GoldMiner._goldMiner.playEffectSound("sounds/pass.mp3",this.imgPass);
+				
+				// 显示	恭喜你顺利过关！  图片
+				this.imgPass.visible = true;
+				
+				// 等待恭喜你顺利过关图片完全喜事完毕之后
+				setTimeout(function():void{
+					// 设置ViewStack显示商铺页面
+					_vsCurrIndex = 1;
+					
+					// 让那个奸商说话
+					imgFace.source = "";
+					imgFace.source = "swf/sayFace.swf";
+					
+					// 隐藏	提示过关的图片
+					imgPass.visible = false;
+					
+					// 设置显示商品
+					setShowGoodsAndShowGoodsPrice();
+				},2500);
+				
+			}
+
+			/**	显示或者还原，商品是否选中的状态
+			 * 	@param alpha:要设置所有商品的alpha属性值\
+			 **/
+			private function showOrRenewGoodsStatus(alpha:Number):void{
+				// 循环设置所有商品图片的不透明度
+				for(var i:int = 0 ; i < this._goodsList.length ; i ++){
+					var goods:Image = this._goodsList[i] as Image;
+					goods.alpha = alpha;
+				}
+			}
+			
+			/**	要显示的商品的详细介绍信息
+			 * 	@param goods:要显示详细信息的商品
+			 * */
+			private function showGoodsInformation(goods:Image):void{
+				// 判断商品属于哪个
+				switch(goods.source.toString()){
+					case "images/bomb.png":
+						this.imgGoodsInfo.source = "images/bombInfo.png";
+						break;
+					case "images/powerWater.png":
+						this.imgGoodsInfo.source = "images/powerWaterInfo.png";
+						break;
+					case "images/luckGrass.png":
+						this.imgGoodsInfo.source = "images/luckGrassInfo.png";
+						break;
+					case "images/stoneBook.png":
+						this.imgGoodsInfo.source = "images/stoneBookInfo.png";
+						break;
+					case "images/diamondWater.png":
+						this.imgGoodsInfo.source = "images/diamondWaterInfo.png";
+						break;
+				}
+			}
+			
+			/**	添加道具，自动判断商品，添加完毕之后将隐藏这个商品
+			 * 	@param goods:点击的商品对象
+			 **/
+			private function addProperties(goods:Image):void{
+				// 获取这个点击的这个商品的图片路径
+				var src:String = goods.source.toString();
+				
+				switch(src){
+					case "images/bomb.png":					// 爆竹
+						if(GoldMiner._currBombNum<10)
+							GoldMiner._currBombNum++;
+						// 隐藏爆竹的价格
+						this.lblBomb.visible = false;
+						break;
+					case "images/diamondWater.png":			// 高质量钻石
+						GoldMiner._IsHighDiamond = true;
+						// 隐藏钻石水的价格
+						this.lblDiamondWatter.visible = false;
+						break;
+					case "images/luckGrass.png":			// 幸运草
+						GoldMiner._IsLuckStatus = true;
+						// 隐藏幸运草的价格
+						this.lblLuckGrass.visible = false;
+						break;
+					case "images/powerWater.png":			// 生力水
+						GoldMiner._powerType = 1;
+						// 隐藏生力水的价格
+						this.lblPowerWater.visible = false;
+						break;
+					case "images/stoneBook.png":			// 石头收藏书
+						GoldMiner._stoneChangeCount = 3;
+						// 隐藏石头收藏书
+						this.lblStoneBook.visible = false;
+						break;
+				}
+				
+				// 隐藏这个商品
+				goods.visible = false;
+				
+				// 只要购买了商品就设置这个属性为true
+				this._IsBuy = true;
+			}
+
+			/**	显示交易时用的金子，扔给奸商
+			 * 	@param gold:要显示的金子
+			 **/
+			private function showExchangeGoodsGold(gold:DisplayObject):void{
+				this._move = new Move();
+				this._move.yBy = 30;
+				this._move.xBy = 30;
+				this._move.target = gold;
+				this._move.duration = this._goldMoveDuration;
+				this._move.play();
+				// 显示金子
+				gold.visible = true;
+				
+				setTimeout(function():void{
+					_move.yBy = -20;
+					_move.xBy = 20;
+					_move.target = gold;
+					_move.duration = _goldMoveDuration;
+					_move.play();
+					
+					setTimeout(function():void{
+						_move.yBy = 20;
+						_move.xBy = 10;
+						_move.target = gold;
+						_move.duration = _goldMoveDuration;
+						_move.play();
+						
+						setTimeout(function():void{
+							// 还原两个金子的状态
+							imgExchange1.visible = false;
+							imgExchange1.x = 290;
+							imgExchange1.y = 476;
+							imgExchange2.visible = false;
+							imgExchange2.x = 320;
+							imgExchange2.y = 476;
+						},2000);
+					},_goldMoveDuration-50);
+				},_goldMoveDuration-50);
+			}
+			
+			/**			改变奸商的脸，切换到生气的脸，建议300ms之后在进行其他操作			*/
+			private function changeWrathFace():void{
+				// 显示生气的脸
+				this.imgFace.source = "swf/wrathFace.swf";
+				// 奸商的脸下垂
+				this.imgFace.y = 367;
+				this._move.xFrom = 820;
+				this._move.xTo = 820;
+				this._move.yFrom = 357;
+				this._move.yTo = 367;
+				this._move.target = this.imgFace;
+				this._move.duration = 200;
+				this._move.play();
+				
+				// 播放生气的声音
+				GoldMiner._goldMiner.playEffectSound("sounds/graspStone.mp3",this.imgFace);
+			}
+			
+			/**			点击开始按钮，开始游戏			*/
+			protected function startGame():void
+			{
+				// TODO Auto-generated method stub
+				// 初始化游戏开始状态
+				GoldMiner._goldMiner.setGameStatusToInitialize();
+				// 设置游戏关卡数和获胜取得分数
+				GoldMiner._goldMiner.setCurrLevelWinPrice();
+
+				
+				// 设置地层的图片
+				GoldMiner._goldMiner.imgStratum.source = "images/stratum"+(int)(Math.random()*4+1)+".png";
+				
+				// 显示ViewStack第一页，并设置显示目标分数
+				this._vsCurrIndex = 0;
+				this.groObjectiveScore.visible = true;
+				
+				// 播放开场声音
+				GoldMiner._goldMiner.playEffectSound("sounds/start.mp3",this.groObjectiveScore);
+				
+				// 等待2.5秒，开始游戏
+				setTimeout(GoldMiner._goldMiner.playGame,2500);
+			}
+
+			
+			
+			
+// -----------------------			事件			------------------------------------------			
+						
+			/**		鼠标移入商品的样式				*/
+			protected function goods_rollOverHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				var goods:Image = event.currentTarget as Image;
+				
+				// 还原所有商品的alpha
+				this.showOrRenewGoodsStatus(1);
+				
+				// 半透明选中的商品
+				goods.alpha = 0.5;
+				
+				// 显示指定的商品详细信息
+				this.showGoodsInformation(goods);
+			}
+
+			/**			鼠标移除商品时		*/
+			protected function goods_rollOutHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				// 还原所有商品的alpha
+				this.showOrRenewGoodsStatus(1);
+			}
+
+			/**			鼠标点击商品时				*/
+			protected function goods_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				var goods:Image = event.currentTarget as Image;
+				// 获取这个商品的价格
+				var goodsPrice:int = parseInt(goods.name);
+				
+				// 如果，总金额大于这个商品价格，就允许购买
+				if(GoldMiner._currPrice > goodsPrice){
+					// 减去商品的价格
+					GoldMiner._currPrice -= goodsPrice;
+					// 添加道具
+					this.addProperties(goods);
+				}
+			}
+			
+			/**			鼠标移入下一关按钮的背景图			*/
+			protected function nextLevel_rollOverHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				this.imgNextLevel.alpha = 1;
+			}
+
+			/**			鼠标移出下一关按钮的背景图			*/
+			protected function nextLevel_rollOutHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				this.imgNextLevel.alpha = 0;
+			}
+
+			/**			鼠标点击下一关按钮的背景图			*/
+			protected function nextLevel_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				// 判断是否可以点击下一关按钮，如果为false，就禁止在执行下面的操作
+				if(!this._IsClickGoNextLevel)
+					return;
+				
+				// 下一关
+				GoldMiner._currLevel++;
+				
+				// 设置地层的图片
+				GoldMiner._goldMiner.imgStratum.source = "images/stratum"+(int)(Math.random()*4+1)+".png";
+
+				// 禁止再次点击下一关按钮
+				this._IsClickGoNextLevel = false;
+				
+				// 隐藏所有商品信息和价格
+				for(var i:int = 0 ; i < this._goodsList.length ; i ++){
+					(this._goodsList[i] as DisplayObject).visible = false;
+					(this._priceList[i] as DisplayObject).visible = false;
+				}
+				// 清空商品类型说明
+				this.imgGoodsInfo.source = "";
+				
+				// 设置当前游戏关数对应的完成分数
+				GoldMiner._goldMiner.setCurrLevelWinPrice();
+
+				// 判断是否购买了商品
+				if(this._IsBuy){
+					// 显示说话的脸
+					this.imgFace.source = "swf/sayFace.swf";
+					GoldMiner._goldMiner.playEffectSound("sounds/plusScore.mp3",this.imgFace);
+					
+					// 显示交易的金子
+					this.showExchangeGoodsGold(this.imgExchange2);
+					// 显示交易的金子2
+					setTimeout(this.showExchangeGoodsGold,100,this.imgExchange1);
+					
+					// 等待进去下一关游戏
+					setTimeout(function():void{
+						// 显示目标分数，隐藏黄金矿工字样
+						_vsCurrIndex = 0;
+						imgAppName.visible = false;
+						groObjectiveScore.visible = true;
+						
+						// 播放声音,目标分数
+						GoldMiner._goldMiner.playEffectSound("sounds/pass.mp3",groObjectiveScore);
+						
+						// 声音播放完毕之后，开始下一关游戏
+						setTimeout(GoldMiner._goldMiner.playGame,2500);
+					},this._goldMoveDuration*3+100);
+				}else{
+					// 切换奸商生气的脸
+					this.changeWrathFace();
+					
+					// 等待进去下一关游戏
+					setTimeout(function():void{
+						// 显示目标分数，隐藏黄金矿工字样
+						_vsCurrIndex = 0;
+						imgAppName.visible = false;
+						groObjectiveScore.visible = true;
+						
+						// 播放声音,目标分数
+						GoldMiner._goldMiner.playEffectSound("sounds/pass.mp3",groObjectiveScore);
+						
+						// 声音播放完毕之后，开始下一关游戏
+						setTimeout(GoldMiner._goldMiner.playGame,2500);
+					},300);
+				}
+			}
+			
+
+
+		]]>
+	</fx:Script>
+
+	<!---		游戏结束	和	购物商城	和		提交分数		-->
+	<mx:ViewStack selectedIndex="{this._vsCurrIndex}" width="100%" height="100%" creationPolicy="all">
+		<!--		过关通告				-->
+		<s:NavigatorContent>
+			<!--		背景图片，很多金子的背景			-->
+			<mx:Image source="images/timeoverBG.png" width="100%" height="100%" maintainAspectRatio="false" />
+			<!---		恭喜你顺利过关！  图片				-->
+			<mx:Image id="imgPass" source="images/gxnslggText.png" x="230" y="175" visible="true" />
+			<!---		您没有过关的图片			-->
+			<mx:Image id="imgNotPass" source="images/nmyddfsText.png" x="230" y="175" visible="true" />
+			<!---		目标分数层			-->
+			<s:Group id="groObjectiveScore" x="230" y="175">
+				<mx:Image source="images/objectiveScore.png"/>
+				<s:Label text="${GoldMiner._winPrice}" styleName="objectiveScore"  x="41" y="111"/>
+			</s:Group>
+		</s:NavigatorContent>
+		<!--		购物商城层				-->
+		<s:NavigatorContent>
+			<!--		灰色格子的背景图			-->
+			<mx:Image source="images/buyBG.png" width="100%" height="100%" maintainAspectRatio="false"  x="0" y="0"/>
+			<!--		购买东西的前台			-->
+			<mx:Image source="images/buyClient.png" y="120" width="100%" height="590" maintainAspectRatio="false"/>
+			<!---		下一关按钮的背景，选中的背景			-->
+			<mx:Image id="imgNextLevel" source="images/nextLevel.png" 
+					  x="752" y="120" width="140" height="55" alpha="0" 
+					  maintainAspectRatio="false" buttonMode="true" 
+					  rollOver="nextLevel_rollOverHandler(event)" 
+					  rollOut="nextLevel_rollOutHandler(event)"
+					  click="nextLevel_clickHandler(event)"/>
+			<s:Label text="下一关" styleName="nextLevel" x="779" y="133" buttonMode="true" mouseEnabled="false" />
+			<!--		 rollOver="nextLevel_rollOverHandler(event)"/>			-->
+			<!---		奸商说的话			-->
+			<mx:Image source="images/sayText.png"  x="42" y="204" width="667" height="71"/>
+			<!---		奸商的脸			-->
+			<mx:Image id="imgFace" source="swf/sayFace.swf" x="820" y="357"/>
+		<!--			商品图片			-->
+			<!---		爆竹			-->
+			<mx:Image id="imgBomb" source="images/bomb.png" x="104" y="423" rotation="20"
+					  rollOver="goods_rollOverHandler(event)" 
+					  rollOut="goods_rollOutHandler(event)"
+					  click="goods_clickHandler(event)"
+					  buttonMode="true"/>
+			<!---		爆竹价格		-->
+			<s:Label id="lblBomb" text="$123" styleName="goods-price" x="62" y="524"/>
+			<!---		省力水			-->
+			<mx:Image id="imgPowerWater" source="images/powerWater.png" 
+					  x="161" y="415" 
+					  width="101" height="97" maintainAspectRatio="false" 
+					  rollOver="goods_rollOverHandler(event)" 
+					  rollOut="goods_rollOutHandler(event)"
+					  click="goods_clickHandler(event)"
+					  buttonMode="true"/>
+			<!--		省力水价格		-->
+			<s:Label id="lblPowerWater" text="$123" styleName="goods-price" x="175" y="524"/>
+			<!---		幸运草			-->
+			<mx:Image id="imgLuckGrass" source="images/luckGrass.png"
+					  x="288" y="422" maintainAspectRatio="false" width="66" height="92" 
+					  rollOver="goods_rollOverHandler(event)" 
+					  rollOut="goods_rollOutHandler(event)" 
+					  click="goods_clickHandler(event)"
+					  buttonMode="true"/>
+			<!---		幸运草价格			-->
+			<s:Label id="lblLuckGrass" text="$123" styleName="goods-price" x="293" y="524"/>
+			<!---		石头收藏数			-->
+			<mx:Image id="imgStoneBook" source="images/stoneBook.png" 
+					  x="395" y="422" maintainAspectRatio="false" width="93" height="92" 
+					  rollOver="goods_rollOverHandler(event)" 
+					  rollOut="goods_rollOutHandler(event)" 
+					  click="goods_clickHandler(event)"
+					  buttonMode="true"/>
+			<!---		石头收藏数价格		-->
+			<s:Label id="lblStoneBook" text="$123" styleName="goods-price" x="412" y="524"/>
+			<!---		钻石水			-->
+			<mx:Image id="imgDiamondWater" source="images/diamondWater.png" 
+					  x="526" y="420" maintainAspectRatio="false" width="93" height="92" 
+					  rollOver="goods_rollOverHandler(event)" 
+					  rollOut="goods_rollOutHandler(event)" 
+					  click="goods_clickHandler(event)"
+					  buttonMode="true"/>
+			<!---		钻石水价格			-->
+			<s:Label id="lblDiamondWatter" text="$123" styleName="goods-price" x="542" y="524"/>
+			
+			<!--		交易用的金子		-->
+			<mx:Image id="imgExchange1" source="images/exchangeGold.png" visible="false" x="290" y="476"/>
+			<mx:Image id="imgExchange2" source="images/exchangeGold.png" visible="false" x="320" y="476"/>
+			
+			<!--		商品说明			-->
+			<mx:Image id="imgGoodsInfo" source="images/bombInfo.png" width="830" x="80" y="566"/>
+		</s:NavigatorContent>
+		<!--		加载页面			-->
+		<s:NavigatorContent>
+			<!--		黑色的背景			-->
+			<mx:Image source="images/black.png" width="100%" height="100%" maintainAspectRatio="false" />
+			<!--		闪烁体		-->
+			<mx:Image source="swf/glint.swf" visible="true"
+					  width="380" height="380" 
+					  x="225" y="190"/>
+			<!--		老头手里拿着的金子			-->
+			<mx:Image id="imgGold" source="swf/gold.swf" 
+					  width="150" height="150" x="217" y="201" buttonMode="true"
+					  rollOver="{this.imgStart.alpha=1;this._glow.play(this._startGlowArray);}"
+					  rollOut="{this.imgStart.alpha=0.5;}"
+					  click="startGame();"/>
+			<!--		开始图片按钮		-->
+			<mx:Image id="imgStart" alpha="0.5" source="images/start.png" width="150" x="140" y="170" height="72" mouseEnabled="false" mouseChildren="false"/>
+			<!--		老头的身体和手-开始的图片		-->
+			<mx:Image source="images/welcome.png" width="100%" height="100%" maintainAspectRatio="false" mouseEnabled="false" mouseChildren="false"/>
+		</s:NavigatorContent>
+	</mx:ViewStack>
+	
+	<!---			黄金矿工文字			-->
+	<mx:Image id="imgAppName" source="images/hjkgText.png" visible="false" x="337" y="43" buttonMode="true"/>
+	
+</s:Group>

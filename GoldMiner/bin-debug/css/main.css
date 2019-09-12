@@ -1,0 +1,52 @@
+/* CSS file */
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+
+
+/**		分数超链接按钮		*/
+.curr-score{
+	rollOverColor: #ffffff;
+	selectionColor: #ffffff;
+	textRollOverColor: #006600;
+	textSelectedColor: #006600;
+	color : #009900;
+	fontFamily : Arial;
+	fontWeight: bold;
+	fontSize: 30;
+}
+
+/**			创建出来的分数			*/
+.create-score{
+	rollOverColor : #ffffff;
+	selectionColor : #ffffff;
+	textRollOverColor : #006600;
+	textSelectedColor : #006600;
+	color : #009900;
+	fontFamily : Arial;
+	fontWeight : normal;
+	fontSize : 26;
+}
+
+/**			倒计时和灌输的超链接按钮		*/
+.downTimeAndLevel{
+	rollOverColor: #ffffff;
+	selectionColor: #ffffff;
+	textRollOverColor: #006600;
+	textSelectedColor: #006600;
+	color : #FF6600;
+	fontFamily: Impact;
+	fontWeight: bold;
+	fontSize: 28;
+}
+
+/**			要完成的分数的样式		*/
+.winScore{
+	rollOverColor: #ffffff;
+	selectionColor: #ffffff;
+	textRollOverColor: #006600;
+	textSelectedColor: #006600;
+	color : #FF9900;
+	fontFamily : Arial;
+	fontWeight: bold;
+	fontSize: 28;
+}

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx" 
+		 width="38" height="32">
+	<s:layout>
+		<s:BasicLayout/>
+	</s:layout>
+	
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[			
+			import flash.utils.setTimeout;
+			
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			
+			
+			
+			
+// -------------------	成员变量		-------------------------------------------			
+			
+			[Bindable]
+			/**	绳索的长度，如果，绳索变长了，那么钩子的y轴坐标自动延伸	*/
+			public var _hookLength:Number = 0;
+			
+			
+			
+			
+			
+// ---------------------		成员方法		----------------------------------			
+			
+			/**			创建爆炸Flash图片				*/
+			public function createBlastByMoveBomb():void{
+				// 创建爆炸图片效果
+				var bombBlast:Image = new Image();
+				bombBlast.source = "swf/blast.swf";
+				bombBlast.x = this.imgHitDot.x;
+				bombBlast.y = this.imgHitDot.y;
+				this.addElement(bombBlast);
+				
+				// 显示默认的钩子
+				this.imgHook.visible = true;
+				// 清空抓住的东西的source
+				this.graspTarget.source = "";
+				// 隐藏扔下去的爆竹的图片
+				this.imgBomb.visible = false;
+				
+				setTimeout(function():void{
+					removeElement(bombBlast);
+					if(_hookLength >= 0){
+						_hookLength = 0;
+					}
+				},500);
+			}
+
+		]]>
+	</fx:Script>
+
+	
+	<!---		钩子抓的东西，如果没有抓住任何东西就把source设置成空			-->
+	<mx:Image id="graspTarget" source="" x="-34" y="{this._hookLength}"/>
+	<!---	钩子的图片		-->
+	<mx:Image id="imgHook" source="images/hook.png" visible="true" y="{this._hookLength}"/>
+	<!---	钩子上的绳子的图片		-->
+	<mx:Image id="imgCord" source="images/cord.png" 
+			  width="2" height="{this._hookLength+10}" 
+			  maintainAspectRatio="false" 
+			  x="18.2" y="0.2"/>
+	<!---	钩子上的一个点，用于测试碰撞的点		-->
+	<mx:Image id="imgHitDot" source="images/dot.png" alpha="0" width="1" height="1" x="19" y="{this._hookLength+16}"/>
+	<!---		抓住大金子的光效			-->
+	<mx:Image id="graspBigGoldEffect" 
+			  x="20" y="{this._hookLength+60}" 
+			  width="110" height="110" />
+	<!---		爆竹，向下仍的爆竹				-->
+	<mx:Image id="imgBomb" source="images/bomb.png" visible="false" width="7" height="30" x="30" y="-90" />
+</s:Group>

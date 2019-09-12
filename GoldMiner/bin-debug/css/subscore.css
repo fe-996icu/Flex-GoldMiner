@@ -1,0 +1,21 @@
+/* CSS file */
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+
+
+/**			你的分数的Label的样式		*/
+.yourScore {
+	color: #ff0000;
+	fontFamily: 黑体;
+	fontSize: 24;
+	fontWeight: bold;
+	fontStyle: italic;
+}
+
+/**			两个按钮上的文字的样式		*/
+.button {
+	color: #000000;
+	fontFamily: 微软雅黑;
+	fontSize: 24;
+	fontWeight: bold;
+}

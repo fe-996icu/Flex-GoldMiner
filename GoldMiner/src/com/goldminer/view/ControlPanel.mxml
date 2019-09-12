@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group creationComplete="loaded();" xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 width="56" height="60">
+
+	<fx:Declarations>
+		<!-- 将非可视元素（例如服务、值对象）放在此处 -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[
+			
+			
+			
+			
+// ----------------------------		成员函数		---------------------------------------------			
+			
+			/**	 	容器加载完毕之后		*/
+			private function loaded():void{
+				// 是否允许播放声音
+				if(GoldMiner._IsPlaySound){
+					this.hideCheckBoxAndShowTarget(this.imgOn);
+				}else{
+					this.hideCheckBoxAndShowTarget(this.imgOff);
+				}
+			}
+			
+			/**	隐藏所有CheckBox图片，只显示一个对象
+			 * 	@param target：要显示的对象
+			 **/
+			private function hideCheckBoxAndShowTarget(target:Image):void{
+				// 隐藏所有CheckBox
+				this.imgOff.alpha = 0;
+				this.imgOff_Down.alpha = 0;
+				this.imgOn.alpha = 0;
+				this.imgOn_Down.alpha = 0;
+				// 只显示指定的CheckBox
+				target.alpha = 1;
+			}
+
+			/**		鼠标移入CheckBox时		*/
+			protected function image1_rollOverHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				if(GoldMiner._IsPlaySound){
+					this.hideCheckBoxAndShowTarget(this.imgOn_Down);
+				}else{
+					this.hideCheckBoxAndShowTarget(this.imgOff_Down);
+				}
+			}
+
+			/**		鼠标移出CheckBox时		*/
+			protected function imgIsPlaySound_rollOutHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				if(GoldMiner._IsPlaySound){
+					this.hideCheckBoxAndShowTarget(this.imgOn);
+				}else{
+					this.hideCheckBoxAndShowTarget(this.imgOff);
+				}
+			}
+
+			/**		鼠标点击CheckBox时		*/
+			protected function imgOn_Down_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				GoldMiner._IsPlaySound = !GoldMiner._IsPlaySound;
+				
+				if(GoldMiner._IsPlaySound){
+					if(GoldMiner._goldMiner.imgCordUp.visible){
+						GoldMiner._goldMiner.imgCordUp.soundTransform = GoldMiner._goldMiner._volumeMax;
+					}else{
+						GoldMiner._goldMiner.imgCordUp.soundTransform = GoldMiner._goldMiner._volumeMin;
+					}
+					this.hideCheckBoxAndShowTarget(this.imgOn);
+				}else{
+					GoldMiner._goldMiner.imgCordUp.soundTransform = GoldMiner._goldMiner._volumeMin;
+					this.hideCheckBoxAndShowTarget(this.imgOff);
+				}
+			}
+
+			/**		点击，进入会员服务专区	 打开网页			*/
+			protected function imgVIP_clickHandler(event:MouseEvent):void
+			{
+				// TODO Auto-generated method stub
+				
+			}
+
+		]]>
+	</fx:Script>
+
+	<!--		第一条面板隔开的水平线			-->
+	<mx:Image source="images/panelBorderV.png"
+			  x="3" y="28" width="84%" height="3" 
+			  maintainAspectRatio="false"/>
+	<!--		背景图片的整个面板的边框，四边框		-->
+	<mx:Image source="images/panelBorder.png" visible="true" width="100%" height="100%" maintainAspectRatio="false" />
+	<!---		是否会员图标		-->
+	<mx:Image id="imgVIP" source="images/ico_vip.png" x="11" y="12" buttonMode="true"
+			  click="imgVIP_clickHandler(event)"/>
+	<!--		声音控制			-->
+	<mx:Image source="images/isSound.png" x="8" y="35"/>
+	<mx:Image id="imgOff" source="images/ck_off.png" x="29" y="36"
+			  mouseChildren="false" mouseEnabled="false"/>
+	<mx:Image id="imgOff_Down" source="images/ck_off_down.png" x="29" y="36"
+			  mouseChildren="false" mouseEnabled="false"/>
+	<mx:Image id="imgOn" source="images/ck_on.png" x="28" y="35"
+			  mouseChildren="false" mouseEnabled="false"/>
+	<mx:Image id="imgOn_Down" source="images/ck_on_down.png" x="28" y="35" toolTip="是否启用声音"
+			  mouseMove="image1_rollOverHandler(event)"
+			  mouseOut="imgIsPlaySound_rollOutHandler(event)"
+			  click="imgOn_Down_clickHandler(event)"/>
+	
+</s:Group>
